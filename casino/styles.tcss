@@ -1,0 +1,140 @@
+Screen {
+    align: center middle;
+}
+
+/*===Title Screen===*/
+
+#homeScreen {
+    align-horizontal: center;
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+}
+
+#title {
+    width: 75%;
+    height: auto;
+    text-align: center;
+    text-style: bold;
+    color: ansi_bright_red;
+    margin-bottom: 3;
+}
+
+#name-input {
+    width: 50%;
+    height: 3;
+    border: none;
+    padding: 1 2;
+    background: $boost;
+    text-align: center;
+}
+
+#name-input:focus {
+    border: none;
+    background: $surface-lighten-1;
+}
+
+/*===Game menu===*/
+
+#menu-container {
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+}
+
+#menu-panel {
+    width: 80%;
+    min-width: 60;
+    height: auto;
+}
+
+#status-bar {
+    width: 100%;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#balance {
+    width: 1fr;
+    text-align: left;
+    text-style: bold;
+    color: #66bb6a;
+}
+
+#player-name {
+    width: 1fr;
+    text-align: right;
+    text-style: bold;
+    color: white;
+}
+
+#game-grid {
+    width: 100%;
+    height: auto;
+    layout: grid;
+    grid-size: 4 2;
+    grid-columns: 1fr;
+    grid-rows: 6;
+    grid-gutter: 0;
+    border: heavy white;
+    padding: 1;
+}
+
+#game-grid Button {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0 1;
+    border: none;
+    text-align: center;
+    content-align: center middle;
+    text-style: bold;
+}
+
+#game-grid Button.tile-red {
+    background: #5b0707;
+    color: white;
+}
+
+#game-grid Button.tile-white {
+    background: #525151;
+    color: #ff0000;
+}
+
+#game-grid Button.tile-red:hover,
+#game-grid Button.tile-red:focus {
+    background: #9b2b2b;
+    border: none;
+    text-style: bold;
+}
+
+#game-grid Button.tile-white:hover,
+#game-grid Button.tile-white:focus {
+    background: #9e9c9c;
+    border: none;
+    text-style: bold;
+}
+
+#game-grid Button.-active {
+    border: none;
+    tint: black 20%;
+}
+
+#exit {
+    width: 24;
+    height: 3;
+    margin-top: 2;
+    border: none;
+    background: #424242;
+    color: white;
+    text-align: center;
+    content-align: center middle;
+}
+
+#exit:hover,
+#exit:focus {
+    background: #616161;
+    border: none;
+    text-style: bold;
+}

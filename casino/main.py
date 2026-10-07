@@ -1,11 +1,28 @@
 import shutil
 from typing import Callable
 
+
 from . import games
 from .accounts import Account
 from .config import Config
 from .types import GameContext
 from .utils import cprint, cinput, clear_screen, display_topbar, get_theme
+
+
+from textual.app import App, ComposeResult
+from textual.geometry import Offset
+from textual.strip import Strip
+from textual.widgets import Footer, Header, Input, Static, Button
+from textual.containers import Center, Horizontal, Vertical, ItemGrid
+
+
+TITLE_ART = """
+┌┬─┬┬─┬┐    ┌┬─┬┐    ┌┬─┬┐     ┌┬─┬┬─┬┐    ┌┐    ┌┬─┬┐    ┌┬─┬┐    ┌┐           ┌┬─┬┐    ┌┬─┬┐    ┌┬─┬┐    ┌┐    ┌┬─┬┐    ┌┬─┬┐
+└┘ ││ └┘    │├ └┘    │├─┴┼┐    ││ ││ ││    ││    ││ ││    │├─┤│    ││           ││ └┘    │├─┤│    └┴┐└┘    ││    ││ ││    ││ ││
+   ││       ││ ┌┐    ││  ││    ││ └┘ ││    ││    ││ ││    ││ ││    ││ ┌┐        ││ ┌┐    ││ ││    ┌┐└┬┐    ││    ││ ││    ││ ││
+   └┘       └┴─┴┘    └┘  └┘    └┘    └┘    └┘    └┘ └┘    └┘ └┘    └┴─┴┘        └┴─┴┘    └┘ └┘    └┴─┴┘    └┘    └┘ └┘    └┴─┴┘
+"""
+NAME_PLACEHOLDER = "Enter Your Name"
 
 
 CASINO_HEADER = """
@@ -14,17 +31,21 @@ CASINO_HEADER = """
 └──────────────────────────────────────┘
 """
 
+
 CASINO_HEADER_OPTIONS = {
     "header": CASINO_HEADER,
     "margin": 3,
 }
 ACCOUNT_STARTING_BALANCE = 100
 
+
 ENTER_OR_QUIT_PROMPT = "[E]nter   [Q]uit: "
 INVALID_CHOICE_PROMPT = "\nInvalid input. Please try again.\n"
 GAME_CHOICE_PROMPT = "Please choose a game to play: "
 
+
 # To add a new game, just add a handler function to GAME_HANDLERS
+
 
 GAME_HANDLERS: dict[str, Callable[[GameContext], None]] = {
     "blackjack (U.S.)": games.blackjack.play_blackjack,
@@ -38,12 +59,15 @@ GAME_HANDLERS: dict[str, Callable[[GameContext], None]] = {
 }
 ALL_GAMES = list(GAME_HANDLERS.keys())
 
+
 def term_width() -> int:
     """Safe terminal width fallback."""
     try:
         return shutil.get_terminal_size().columns
     except Exception:
         return 80
+
+
 
 
 def prompt_with_refresh(
@@ -68,90 +92,165 @@ def prompt_with_refresh(
         last_error = error_message
 
 
+class CenteredInput(Input):
+    def _left_pad(self) -> int:
+        width = self.scrollable_content_region.width
+        return max(0, (width - self.content_width) // 2)
+
+
+    def render_line(self, y: int) -> Strip:
+        strip = super().render_line(y)
+        pad = self._left_pad()
+        if y != 0 or not pad:
+            return strip
+        length = strip.cell_length
+        shifted = Strip.join([Strip.blank(pad, self.rich_style), strip])
+        return shifted.crop(0, length)
+
+
+    @property
+    def cursor_screen_offset(self) -> Offset:
+        base = super().cursor_screen_offset
+        return Offset(base.x + self._left_pad(), base.y)
+
+
+    def _cell_offset_to_index(self, offset: int) -> int:
+        return super()._cell_offset_to_index(offset - self._left_pad())
+
+
+
+
+class titleScreen(App):
+
+
+    CSS_PATH = "styles.tcss"
+
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="homeScreen"):
+            with Center():
+                yield Static(TITLE_ART, id="title")
+            with Center():
+                yield CenteredInput(
+                    placeholder=NAME_PLACEHOLDER,
+                    type="text",
+                    id="name-input",
+                    max_length=20
+                )
+
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        name = event.value.strip()
+   
+        if name:
+            self.exit(name)
+
+
+class GameMenu(App):
+
+
+    CSS_PATH = "styles.tcss"
+
+
+    def __init__(self, player_name: str, balance: float) -> None:
+        super().__init__()
+        self.player_name = player_name
+        self.balance = balance
+
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="menu-container"):
+            with Center():
+                with Vertical(id="menu-panel"):
+                    with Horizontal(id="status-bar"):
+                        yield Static(f"Balance: ${self.balance:,}", id="balance")
+                        yield Static(self.player_name, id="player-name")
+                    with ItemGrid(id="game-grid"):
+                        for i, name in enumerate(ALL_GAMES, start=1):
+                            row, col = divmod(i - 1, 4)
+                            tile = "tile-red" if (row + col) % 2 == 0 else "tile-white"
+                            yield Button(name.title(), id=f"g{i}", classes=tile)
+            with Center():
+                yield Button("Exit", id="exit")
+
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.exit(str(event.button.id))
+
 
 def main_menu(ctx: GameContext) -> None:
-    """
-    Main loop: show welcome, then (if chosen) show game menu, call handler,
-    then return to top-level menu. No recursion used.
-    """
     account = ctx.account
-    while True:
-        def render_welcome():
-            clear_screen()
-            display_topbar(account, **CASINO_HEADER_OPTIONS)
-            cprint("")  # spacing
-
-        action = prompt_with_refresh(
-            render_fn = render_welcome,
-            prompt = ENTER_OR_QUIT_PROMPT.center(term_width()),
-            error_message = INVALID_CHOICE_PROMPT,
-            validator = lambda x: x.lower() in {"e", "q"},
-            transform = lambda s: s.strip().lower(),
-        )
-
-        if action == "q":
-            clear_screen()
-            display_topbar(account, **CASINO_HEADER_OPTIONS)
-            cprint("\nGoodbye!\n")
-            break  # exit loop -> program ends
-
-        # --- choose game ---
-        def render_choose_game():
-            clear_screen()
-            display_topbar(account, **CASINO_HEADER_OPTIONS)
-            cprint("")  # spacing
-            width = term_width()
-            max_length = max(map(len, ALL_GAMES))
-            cprint("┌" + "─" * 30 + "┐")
-            cprint("│" + " " * 30 + "│")
-            for i, name in enumerate(ALL_GAMES, start=1):
-                cprint(
-                    f"│{('[{}] {}'.format(i, name.title()) + ' ' * (max_length - len(name))).center(30)}│".center(width)
-                )
-            cprint("│" + " " * 30 + "│")
-            cprint("└" + "─" * 30 + "┘")
 
 
+    app = GameMenu(
+        player_name=getattr(account, "name", ACCOUNT_STARTING_BALANCE),
+        balance=getattr(account, "balance", ACCOUNT_STARTING_BALANCE)
+    )
 
-        choice = prompt_with_refresh(
-            render_fn = render_choose_game,
-            prompt = GAME_CHOICE_PROMPT.center(term_width()),
-            error_message = INVALID_CHOICE_PROMPT,
-            validator = lambda x: x.isdigit() and 1 <= int(x) <= len(ALL_GAMES),
-        )
 
-        selected_game = ALL_GAMES[int(choice) - 1]
-        handler = GAME_HANDLERS.get(selected_game)
-        if handler:
-            clear_screen()
-            handler(ctx)  # returns to loop after game finishes
-        else:
-            clear_screen()
-            display_topbar(account, **CASINO_HEADER_OPTIONS)
-            cprint("\nNo such game!\n")
+    selection = app.run()
+
+
+    if selection == "exit":
+        return
+
+
+    choice = int(selection[1:])
+
+
+    selected_game = ALL_GAMES[choice - 1]
+
+
+    handler = GAME_HANDLERS.get(selected_game)
+
+
+    if handler:
+        clear_screen()
+        handler(ctx)    
+
+
 
 
 def main():
-    clear_screen()
-    display_topbar(account=None, **CASINO_HEADER_OPTIONS)
-
-    name = cinput("Enter your name: ").strip()
-    while not name:
-        clear_screen()
-        display_topbar(account=None, **CASINO_HEADER_OPTIONS)
-        cprint("\nInvalid input. Please enter a valid name.\n")
-        name = cinput("Enter your name: ").strip()
-    
-    # theme selection
-    clear_screen()
-    display_topbar(account=None, **CASINO_HEADER_OPTIONS)
-    get_theme()
+    name = ""
+    app = titleScreen()
+    name = app.run()
 
 
     account = Account.generate(name, ACCOUNT_STARTING_BALANCE)
     config = Config.default()
     ctx = GameContext(account=account, config=config)
-    main_menu(ctx)
+
+
+    # theme selection
+    # clear_screen()
+    # display_topbar(account=None, **CASINO_HEADER_OPTIONS)
+    # get_theme()
+
+    while True:
+        app = GameMenu(
+            player_name=name,
+            balance=getattr(account, "balance", ACCOUNT_STARTING_BALANCE),
+        )
+        selection = app.run()
+
+
+        if selection == "exit":
+            return
+
+
+        choice = int(selection[1:])
+
+
+        selected_game = ALL_GAMES[choice - 1]
+
+
+        handler = GAME_HANDLERS.get(selected_game)
+
+
+        if handler:
+            clear_screen()
+            handler(ctx)
 
 
 if __name__ == "__main__":
@@ -161,4 +260,3 @@ if __name__ == "__main__":
         clear_screen()
         display_topbar(account=None, **CASINO_HEADER_OPTIONS)
         cprint("\nGoodbye! (Interrupted)\n")
-
